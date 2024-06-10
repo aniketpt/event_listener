@@ -18,9 +18,9 @@ class TopicRegistration:
 
 class EventListener:
 
-    def __init__(self, bootstrap_servers: str, consumer_configurations: Optional[dict] = None):
+    def __init__(self, bootstrap_servers: str, **consumer_configurations):
         self.bootstrap_servers = bootstrap_servers
-        self.consumer_configurations = consumer_configurations or {}
+        self.consumer_configurations = consumer_configurations
         self.registrations: Dict[str, TopicRegistration] = {}
 
     def topic(self, topic: str):
