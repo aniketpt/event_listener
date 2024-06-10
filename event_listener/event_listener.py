@@ -1,12 +1,14 @@
-import json
 import asyncio
+import json
+import inspect
+import traceback
 from dataclasses import dataclass
-from typing import Dict, Callable
+from typing import Callable, Dict, Optional
 
 from aiokafka import AIOKafkaConsumer
 from pydantic import BaseModel
 
-
+from .logger import logger
 
 @dataclass
 class TopicRegistration:
@@ -16,14 +18,17 @@ class TopicRegistration:
 
 class EventListener:
 
-    def __init__(self, bootstrap_servers: str, consumer_configurations: dict):
+    def __init__(self, bootstrap_servers: str, consumer_configurations: Optional[dict] = None):
         self.bootstrap_servers = bootstrap_servers
-        self.consumer_configurations = consumer_configurations
+        self.consumer_configurations = consumer_configurations or {}
         self.registrations: Dict[str, TopicRegistration] = {}
 
     def topic(self, topic: str):
 
         def decorator(action_fn: Callable[[BaseModel], None]):
+
+            if not inspect.iscoroutinefunction(action_fn):
+                raise TypeError(f'{action_fn.__name__} is not a coroutine')
 
             def wrapper(message):
                 models = self.registrations[topic].models
@@ -57,7 +62,7 @@ class EventListener:
                 async for message in self.consumer:
                     if not message.value:
                         continue
-                    print("%s:%d:%d: key=%s value=%s" % (message.topic, message.partition,
+                    logger.info("[Message] %s:%d:%d: key=%s value=%s" % (message.topic, message.partition,
                                                          message.offset, message.key,
                                                          message.value))
 
@@ -66,7 +71,10 @@ class EventListener:
                     models = self.registrations[message.topic].models
                     kwargs = {arg_name: Model(**message_value) for arg_name, Model in models.items()}
                     asyncio.create_task(fn(**kwargs))
-            except Exception as exc:
-                print(exc)
-                await self.consumer.commit()
+            except Exception:
+                logger.error('Encountered a failure while consuming messages')
+                traceback.print_exc()
                 continue
+
+    def run(self):
+        asyncio.run(self.start_listening())
