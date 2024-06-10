@@ -3,7 +3,10 @@ from pydantic import BaseModel
 from event_listener import EventListener
 
 
-app = EventListener('localhost:9092')
+app = EventListener(
+    'localhost:9092',
+    group_id='event-listeer-test-group'
+)
 
 
 class User(BaseModel):
